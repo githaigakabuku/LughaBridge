@@ -40,10 +40,10 @@ class HFInferenceASR(ASRService):
                 "HF_TOKEN not set. HF Inference API requests may be rate-limited. "
                 "Get a token from https://huggingface.co/settings/tokens"
             )
-        
-        # Initialize Inference Client
-        self.client = InferenceClient(token=self.token)
-    
+        # Note: InferenceClient is NOT used here — automatic_speech_recognition() raises
+        # StopIteration for community models that have no provider mapping.
+        # We call router.huggingface.co directly via requests instead.
+
     def transcribe(self, audio_path: str, language: str) -> Dict[str, Any]:
         """
         Transcribe audio file using HF Inference API.
@@ -62,32 +62,44 @@ class HFInferenceASR(ASRService):
         logger.info(f"Transcribing audio via HF API for {language}: {model_name}")
         
         try:
+            import requests as req
+
             # Read audio file as bytes
             with open(audio_path, 'rb') as audio_file:
                 audio_data = audio_file.read()
-            
-            # Call HF Inference API using InferenceClient
-            result = self.client.automatic_speech_recognition(
-                audio_data,
-                model=model_name
-            )
-            
-            # Extract text from response
-            if isinstance(result, dict):
-                transcribed_text = result.get('text', '')
-            elif isinstance(result, str):
-                transcribed_text = result
+
+            # Call HF Inference API directly.
+            # router.huggingface.co returns 404 for community fine-tuned models not
+            # registered on the provider router. Use the classic serverless inference
+            # endpoint instead, which supports any public model on the Hub.
+            api_url = f"https://api-inference.huggingface.co/models/{model_name}"
+            headers = {
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "audio/webm",
+            }
+
+            response = req.post(api_url, headers=headers, data=audio_data, timeout=60)
+            response.raise_for_status()
+            data = response.json()
+
+            # Extract text
+            if isinstance(data, dict):
+                if "error" in data:
+                    raise RuntimeError(f"HF ASR API error: {data['error']}")
+                transcribed_text = data.get("text", "")
+            elif isinstance(data, str):
+                transcribed_text = data
             else:
-                logger.error(f"Unexpected API response format: {result}")
+                logger.error(f"Unexpected ASR API response format: {data}")
                 transcribed_text = ""
-            
+
             logger.info(f"ASR successful: {transcribed_text[:50]}...")
-            
+
             return {
                 "text": transcribed_text,
                 "confidence": 0.95  # HF API doesn't return confidence scores
             }
-            
+
         except Exception as e:
             logger.error(f"HF Inference API ASR error for {language}: {str(e)}")
             raise
@@ -202,39 +214,51 @@ class HFInferenceTTS(TTSService):
             logger.warning(
                 "HF_TOKEN not set. HF Inference API requests may be rate-limited."
             )
-        
-        # Initialize Inference Client
-        self.client = InferenceClient(token=self.token)
-        
+        # Note: InferenceClient.text_to_speech() raises StopIteration for models
+        # with no provider mapping. Use requests directly instead.
+
         # Create temp directory for audio files
         self.temp_dir = os.path.join(settings.MEDIA_ROOT, 'tts_temp')
         os.makedirs(self.temp_dir, exist_ok=True)
-    
+
     def synthesize(self, text: str, language: str, gender: str = "neutral") -> str:
         """
         Synthesize speech from text using HF Inference API.
-        
+
         Args:
             text: Text to synthesize
             language: Target language code (kikuyu, swahili, english)
             gender: Voice gender preference (not used by HF API)
-            
+
         Returns:
             str: Path to generated audio file
         """
+        import requests as req
+
         model_name = self.model_configs.get(language)
         if not model_name:
             raise ValueError(f"No TTS model configured for language: {language}")
-        
+
         logger.info(f"Synthesizing speech via HF API for {language}: {text[:50]}...")
-        
+
         try:
-            # Call HF Inference API using InferenceClient
-            audio_bytes = self.client.text_to_speech(
-                text,
-                model=model_name
-            )
-            
+            # Call HF router endpoint directly (avoids broken InferenceClient provider mapping).
+            # MMS-TTS models are Facebook-hosted and available on the router.
+            api_url = f"https://router.huggingface.co/hf-inference/models/{model_name}"
+            headers = {
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
+            }
+            response = req.post(api_url, headers=headers, json={"inputs": text}, timeout=30)
+
+            if response.status_code == 404:
+                # Fall back to classic endpoint if model isn't on the router
+                api_url = f"https://api-inference.huggingface.co/models/{model_name}"
+                response = req.post(api_url, headers=headers, json={"inputs": text}, timeout=30)
+
+            response.raise_for_status()
+            audio_bytes = response.content
+
             # Save audio to file
             audio_filename = f"tts_{language}_{uuid.uuid4().hex[:8]}.flac"
             audio_path = os.path.join(self.temp_dir, audio_filename)

@@ -3,12 +3,13 @@ Groq API translation service implementation.
 Uses Groq's LLM API for fast, free translation (best for Swahili).
 """
 
+import os
 import requests
 import logging
 from typing import Dict, Any
 from django.conf import settings
 
-from .base import TranslationService
+from .base import ASRService, TranslationService
 
 logger = logging.getLogger(__name__)
 
@@ -173,3 +174,83 @@ class GroqTranslator(TranslationService):
             text = text[1:-1]
         
         return text.strip()
+
+
+class GroqASR(ASRService):
+    """
+    ASR service using Groq's Whisper API.
+    Uses whisper-large-v3 — multilingual model that handles Kikuyu, Swahili, English.
+    Endpoint: https://api.groq.com/openai/v1/audio/transcriptions
+    Free tier: 7,200 seconds of audio per day (very generous).
+    """
+
+    TRANSCRIPTION_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+
+    # Whisper language codes (ISO 639-1) — Groq passes these to Whisper directly.
+    # Kikuyu is not in Whisper's official list but whisper-large-v3 understands it
+    # via its multilingual training. Passing None lets Whisper auto-detect.
+    LANGUAGE_CODES = {
+        'kikuyu': None,   # auto-detect; whisper handles it well enough
+        'swahili': 'sw',
+        'english': 'en',
+    }
+
+    def __init__(self):
+        self.api_key = settings.GROQ_API_KEY
+        if not self.api_key or not self.api_key.strip():
+            raise ValueError(
+                "GROQ_API_KEY not set. Cannot use GroqASR. "
+                "Get a free key from https://console.groq.com/keys"
+            )
+
+    def transcribe(self, audio_path: str, language: str) -> Dict[str, Any]:
+        """
+        Transcribe audio via Groq Whisper API.
+
+        Args:
+            audio_path: Path to audio file (webm, wav, mp3, etc.)
+            language: Source language (kikuyu, swahili, english)
+
+        Returns:
+            dict: {"text": str, "confidence": float}
+        """
+        lang_code = self.LANGUAGE_CODES.get(language)  # None = auto-detect
+        logger.info(f"Transcribing via Groq Whisper for '{language}' (lang_code={lang_code!r}): {audio_path}")
+
+        try:
+            with open(audio_path, 'rb') as audio_file:
+                filename = os.path.basename(audio_path)
+                files = {
+                    'file': (filename, audio_file, 'audio/webm'),
+                    'model': (None, 'whisper-large-v3'),
+                    'response_format': (None, 'json'),
+                }
+                if lang_code:
+                    files['language'] = (None, lang_code)
+
+                headers = {"Authorization": f"Bearer {self.api_key}"}
+                response = requests.post(
+                    self.TRANSCRIPTION_URL,
+                    headers=headers,
+                    files=files,
+                    timeout=60,
+                )
+
+            if response.status_code == 200:
+                data = response.json()
+                text = data.get('text', '').strip()
+                logger.info(f"Groq ASR success: {text[:60]}...")
+                return {"text": text, "confidence": 0.92}
+
+            elif response.status_code == 429:
+                raise Exception("Groq ASR rate limit hit. Wait a moment and retry.")
+            elif response.status_code == 401:
+                raise Exception("Invalid GROQ_API_KEY for ASR.")
+            else:
+                raise Exception(f"Groq ASR error {response.status_code}: {response.text}")
+
+        except requests.exceptions.Timeout:
+            raise Exception("Groq ASR request timed out after 60 seconds")
+        except Exception as e:
+            logger.error(f"Groq ASR error for {language}: {str(e)}")
+            raise

@@ -8,7 +8,7 @@ interface MicButtonProps {
 
 const stateLabels: Record<SystemState, string> = {
   idle: 'Tap to Speak',
-  listening: 'Listening…',
+  listening: 'Tap to Stop',
   transcribing: 'Transcribing…',
   translating: 'Translating…',
   completed: 'Tap to Speak',
@@ -31,32 +31,27 @@ const MicButton = ({ state, onPress }: MicButtonProps) => {
       </motion.span>
       <button
         onClick={onPress}
+        onTouchEnd={(e) => { e.preventDefault(); onPress(); }}
         disabled={isProcessing}
         className={`
           relative flex items-center justify-center w-16 h-16 rounded-full transition-all duration-300
-          ${isRecording ? 'bg-secondary text-white glow-emerald animate-pulse-glow' : ''}
+          ${isRecording ? 'bg-red-500 text-white shadow-lg shadow-red-300/60 animate-pulse-glow' : ''}
           ${!isRecording && !isProcessing ? 'bg-primary text-white glow-gold-subtle animate-mic-idle' : ''}
           ${isProcessing ? 'bg-white/60 backdrop-blur-sm border border-white/80 shadow-sm' : ''}
           disabled:cursor-wait
         `}
       >
-        {/* Waveform bars when listening */}
+        {/* Stop icon when recording */}
         {isRecording ? (
-          <div className="flex items-center gap-[3px]">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <motion.div
-                key={i}
-                className="w-[3px] rounded-full bg-foreground"
-                animate={{ height: [4, 16, 4] }}
-                transition={{
-                  duration: 0.6,
-                  repeat: Infinity,
-                  delay: i * 0.1,
-                  ease: 'easeInOut',
-                }}
-              />
-            ))}
-          </div>
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="text-white"
+          >
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+          </svg>
         ) : (
           <svg
             width="24"

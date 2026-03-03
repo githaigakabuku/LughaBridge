@@ -89,15 +89,18 @@ def process_voice_message(room_code: str, audio_data_base64: str, language: str,
         
         # Update progress: Starting TTS
         _broadcast_progress(channel_layer, room_code, message_id, 'synthesizing', 0.8)
-        
-        # Step 4: TTS - Generate audio (optional, can skip for efficiency)
-        tts_service = ModelFactory.get_tts_service()
-        audio_path = tts_service.synthesize(translation['text'], target_lang)
-        
-        # Convert audio to base64
-        with open(audio_path, 'rb') as f:
-            audio_base64 = base64.b64encode(f.read()).decode()
-        
+
+        # Step 4: TTS - Generate audio (optional — failure does NOT block text delivery)
+        audio_base64 = None
+        audio_path = None
+        try:
+            tts_service = ModelFactory.get_tts_service()
+            audio_path = tts_service.synthesize(translation['text'], target_lang)
+            with open(audio_path, 'rb') as f:
+                audio_base64 = base64.b64encode(f.read()).decode()
+        except Exception as tts_err:
+            logger.warning(f"TTS failed (text translation will still be delivered): {tts_err}")
+
         # Create message object
         message = {
             'id': message_id,
@@ -108,13 +111,13 @@ def process_voice_message(room_code: str, audio_data_base64: str, language: str,
             'translated_language': target_lang,
             'stt_confidence': transcription['confidence'],
             'translation_confidence': translation['confidence'],
-            'audio_data': audio_base64,
+            'audio_data': audio_base64,  # None if TTS failed — frontend handles gracefully
             'timestamp': datetime.now(timezone.utc).isoformat(),
         }
-        
+
         # Store message in Redis
         room_manager.add_message(room_code, message)
-        
+
         # Broadcast to all participants in room
         async_to_sync(channel_layer.group_send)(
             f'room_{room_code}',
@@ -123,11 +126,11 @@ def process_voice_message(room_code: str, audio_data_base64: str, language: str,
                 'message': message
             }
         )
-        
+
         # Cleanup temp files
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
-        if os.path.exists(audio_path):
+        if audio_path and os.path.exists(audio_path):
             os.remove(audio_path)
         
         logger.info(f"Voice message processed successfully: {message_id}")

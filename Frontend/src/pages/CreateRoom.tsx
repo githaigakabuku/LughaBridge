@@ -26,8 +26,8 @@ const CreateRoom = () => {
     setError(null);
     try {
       const res = await api.createRoom({
-        source_lang: source,
-        target_lang: target,
+        source_lang: source.toLowerCase(),
+        target_lang: target.toLowerCase(),
       });
       setRoomCode(res.room_code);
     } catch {

@@ -12,6 +12,7 @@ import logging
 from .base import ASRService, TranslationService, TTSService
 from .mock_services import MockASR, MockTranslator, MockTTS
 from .hf_inference_services import HFInferenceASR, HFInferenceTranslator, HFInferenceTTS
+from .groq_translator import GroqASR, GroqTranslator
 
 # Optional imports - only load if actually needed (saves startup time and avoids torch dependency)
 try:
@@ -52,6 +53,9 @@ class ModelFactory:
     _hf_asr_service = None
     _hf_translation_service = None
     _hf_tts_service = None
+
+    # Groq ASR instance
+    _groq_asr_service = None
     
     # Hybrid translator (HF + Groq)
     _hybrid_translator = None
@@ -82,10 +86,12 @@ class ModelFactory:
                 cls._mock_asr = MockASR()
             return cls._mock_asr
         elif hf_mode:
-            if cls._hf_asr_service is None:
-                logger.info("Creating HFInferenceASR service (HF Inference API mode)")
-                cls._hf_asr_service = HFInferenceASR()
-            return cls._hf_asr_service
+            # HF serverless ASR is 410 Gone for community models (e.g. Kikuyu).
+            # Use Groq Whisper instead — free, fast, multilingual.
+            if cls._groq_asr_service is None:
+                logger.info("Creating GroqASR service (Groq Whisper — replaces broken HF ASR)")
+                cls._groq_asr_service = GroqASR()
+            return cls._groq_asr_service
         else:
             if cls._asr_service is None:
                 logger.info("Creating HuggingFaceASR service (local model mode)")
@@ -165,6 +171,7 @@ class ModelFactory:
         cls._hf_translation_service = None
         cls._hf_tts_service = None
         cls._hybrid_translator = None
+        cls._groq_asr_service = None
         cls._mock_asr = None
         cls._mock_translator = None
         cls._mock_tts = None

@@ -5,6 +5,7 @@ import { mockMessages, demoSequence, type ChatMessage, type SystemState } from '
 import { api } from '@/services/api';
 import { RoomWebSocket, normalizeMessage } from '@/services/websocket';
 import { useVoiceRecording } from '@/hooks/useVoiceRecording';
+import { useBrowserTTS } from '@/hooks/useBrowserTTS';
 
 const RoomChat = () => {
   const { code } = useParams<{ code: string }>();
@@ -24,6 +25,9 @@ const RoomChat = () => {
   const demoIndex = useRef(0);
   const demoTimeout = useRef<ReturnType<typeof setTimeout>>();
   const processingMessageIds = useRef<Set<string>>(new Set());
+
+  // Browser TTS — plays server audio or falls back to speechSynthesis
+  const { speak: speakTTS } = useBrowserTTS();
 
   // Voice recording hook
   const { isRecording, startRecording, stopRecording } = useVoiceRecording({
@@ -104,12 +108,19 @@ const RoomChat = () => {
             console.log('Translation complete:', data);
             const message = normalizeMessage(data);
             setMessages((prev) => [...prev, message]);
-            
+
+            // Play audio: server TTS if available, otherwise browser speechSynthesis
+            speakTTS(
+              message.translatedText,
+              data.translated_language || roomLanguages?.target || 'english',
+              data.audio_data ?? null,
+            );
+
             // Remove from processing set
             if (data.id || data.message_id) {
               processingMessageIds.current.delete(data.id || data.message_id);
             }
-            
+
             // Update state
             setSystemState('completed');
             setTimeout(() => setSystemState('idle'), 800);
@@ -219,22 +230,24 @@ const RoomChat = () => {
   }, []);
 
   const handleMicPress = useCallback(() => {
+    // Always allow stopping an active recording regardless of systemState
+    if (isRecording) {
+      stopRecording();
+      setSystemState('transcribing');
+      return;
+    }
+
     if (systemState !== 'idle' && systemState !== 'completed') return;
-    
+
     // Use demo simulation if in demo mode or on demo room
     if (demoMode || isDemo) {
       simulateMessage();
       return;
     }
-    
-    // Real voice recording
-    if (isRecording) {
-      stopRecording();
-      setSystemState('transcribing');
-    } else {
-      setSystemState('listening');
-      startRecording();
-    }
+
+    // Start real voice recording
+    setSystemState('listening');
+    startRecording();
   }, [systemState, demoMode, isDemo, isRecording, startRecording, stopRecording, simulateMessage]);
 
   const handleDemoToggle = useCallback((val: boolean) => {
