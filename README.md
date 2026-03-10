@@ -1,21 +1,25 @@
 # LughaBridge
 
-Real-time voice translation between Kikuyu and English.
+A real-time translation and communication platform with separate backend and frontend applications.
+
+## Project Structure
+
+This is a monorepo containing:
+- **Backend/** - Django backend with translation services, WebSocket support, and API
+- **Frontend/** - React/TypeScript frontend with Vite, Tailwind CSS, and shadcn-ui
 
 ## Getting Started
 
-### Prerequisites
+### Frontend Development
 
-You'll need Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-### Setup
+The frontend is built with React, TypeScript, Vite, and Tailwind CSS.
 
 ```sh
 # Step 1: Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory
-cd lugha-bridge/lughabridge-connect
+# Step 2: Navigate to the frontend directory
+cd LughaBridge/Frontend
 
 # Step 3: Install dependencies
 npm install
@@ -24,42 +28,49 @@ npm install
 npm run dev
 ```
 
-The app will be available at `http://localhost:8080`
+The frontend dev server will run on `http://localhost:8080`
+
+### Backend Development
+
+The backend is a Django application with translation services.
+
+```sh
+# Step 1: Navigate to the backend directory
+cd Backend
+
+# Step 2: Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Step 3: Install dependencies
+pip install -r requirements.txt
+
+# Step 4: Run migrations
+python manage.py migrate
+
+# Step 5: Start the development server
+python manage.py runserver
+```
 
 ## Technologies
 
-This project is built with:
+### Frontend
+- React with TypeScript
+- Vite (build tool)
+- Tailwind CSS
+- shadcn-ui components
+- npm (package manager)
 
-- **Vite** - Fast build tool and dev server
-- **TypeScript** - Type-safe JavaScript
-- **React 18** - UI library
-- **Tailwind CSS** - Utility-first CSS framework
-- **Framer Motion** - Animation library
-- **shadcn-ui** - Component library
+### Backend
+- Django
+- Django Channels (WebSocket support)
+- Translation services (NLLB, Groq, HuggingFace)
+- Redis (caching and task queue)
+- Q Cluster (async task processing)
 
-## Project Structure
+## Development Notes
 
-```
-src/
-├── components/           # React components
-│   └── lugha/           # LughaBridge-specific components
-├── data/                # Mock data and types
-├── pages/               # Page components
-├── styles/              # Global styles
-└── main.tsx             # Entry point
-```
-
-## Development
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-
-## Features
-
-- Real-time Kikuyu ↔ English voice translation
-- Glass morphism UI design
-- Mobile-optimized interface
-- Audio waveform visualization
-- Message history with confidence indicators
-- Demo mode for testing
+- Frontend runs on port 8080 (Vite dev server)
+- Backend runs on port 8000 (Django dev server)
+- Make sure to run both servers for full functionality
+- The old demo file is preserved at `Frontend/demo.html`
