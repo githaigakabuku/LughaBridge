@@ -49,7 +49,8 @@ export class RoomWebSocket {
   constructor(roomCode: string, wsBaseUrl?: string) {
     this.roomCode = roomCode;
     const baseUrl = wsBaseUrl || WS_BASE;
-    this.wsUrl = `${baseUrl}/ws/room/${roomCode}/`;
+    const normalizedBase = baseUrl.endsWith('/ws') ? baseUrl : `${baseUrl}/ws`;
+    this.wsUrl = `${normalizedBase}/room/${roomCode}/`;
   }
 
   connect(): Promise<void> {
