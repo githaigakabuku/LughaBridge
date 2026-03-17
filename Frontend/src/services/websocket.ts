@@ -48,7 +48,11 @@ export class RoomWebSocket {
 
   constructor(roomCode: string, wsBaseUrl?: string) {
     this.roomCode = roomCode;
-    const baseUrl = wsBaseUrl || WS_BASE;
+    let baseUrl = wsBaseUrl || WS_BASE;
+    baseUrl = baseUrl.replace(/\/+$/, '');
+    if (baseUrl.endsWith('ws') && !baseUrl.endsWith('/ws')) {
+      baseUrl = `${baseUrl.slice(0, -2)}/ws`;
+    }
     const normalizedBase = baseUrl.endsWith('/ws') ? baseUrl : `${baseUrl}/ws`;
     this.wsUrl = `${normalizedBase}/room/${roomCode}/`;
   }

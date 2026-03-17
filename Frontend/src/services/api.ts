@@ -37,7 +37,12 @@ export const api = {
   },
 
   getWsUrl(roomCode: string): string {
-    return `${WS_BASE}/room/${roomCode}/`;
+    let baseUrl = WS_BASE.replace(/\/+$/, '');
+    if (baseUrl.endsWith('ws') && !baseUrl.endsWith('/ws')) {
+      baseUrl = `${baseUrl.slice(0, -2)}/ws`;
+    }
+    const normalizedBase = baseUrl.endsWith('/ws') ? baseUrl : `${baseUrl}/ws`;
+    return `${normalizedBase}/room/${roomCode}/`;
   },
 
   normalizeMessages(raw: any[]): ChatMessage[] {
