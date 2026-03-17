@@ -1,8 +1,8 @@
 import type { CreateRoomPayload, CreateRoomResponse, JoinRoomResponse, HealthCheckResponse, MessagesResponse } from '@/types';
 import type { ChatMessage } from '@/data/mockMessages';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/ws';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://lughabridge.onrender.com/api';
+const WS_BASE = import.meta.env.VITE_WS_BASE_URL || 'wss://lughabridge.onrender.com/ws';
 
 export const api = {
   baseUrl: API_BASE,

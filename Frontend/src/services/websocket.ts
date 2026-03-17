@@ -1,6 +1,6 @@
 import type { ChatMessage } from '@/data/mockMessages';
 
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+const WS_BASE = import.meta.env.VITE_WS_BASE_URL || 'wss://lughabridge.onrender.com/ws';
 
 export type WSMessageType =
   | 'connection_established'

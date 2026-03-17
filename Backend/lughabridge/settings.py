@@ -9,6 +9,7 @@ import environ
 import os
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+from django.core.exceptions import ImproperlyConfigured
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -69,7 +70,18 @@ if DEMO_MODE and USE_HF_INFERENCE:
         "or both False for local models."
     )
 
-REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
+# Redis configuration
+# - In DEBUG, default to local redis for dev convenience.
+# - In production (DEBUG=False), require REDIS_URL to be set.
+REDIS_URL = env('REDIS_URL', default='')
+
+if not REDIS_URL:
+    if DEBUG:
+        REDIS_URL = 'redis://localhost:6379/0'
+    else:
+        raise ImproperlyConfigured(
+            'REDIS_URL must be set when DEBUG is False (production).'
+        )
 
 # Application definition
 
@@ -138,7 +150,7 @@ else:
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [env('REDIS_URL')],
+                "hosts": [REDIS_URL],
             },
         },
     }
