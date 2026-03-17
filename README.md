@@ -5,6 +5,7 @@ A real-time translation and communication platform with separate backend and fro
 ## Project Structure
 
 This is a monorepo containing:
+
 - **Backend/** - Django backend with translation services, WebSocket support, and API
 - **Frontend/** - React/TypeScript frontend with Vite, Tailwind CSS, and shadcn-ui
 
@@ -48,13 +49,30 @@ pip install -r requirements.txt
 # Step 4: Run migrations
 python manage.py migrate
 
-# Step 5: Start the development server
-python manage.py runserver
+# Step 5: Start Redis (required for rooms + background tasks)
+# Option A: Local Redis
+redis-server
+
+# Option B: Docker
+docker run --rm -p 6379:6379 redis:7-alpine
+
+# Step 6: Start the ASGI server (HTTP + WebSockets)
+daphne -p 8000 lughabridge.asgi:application
+
+# Step 7: Start the background worker (required for translation pipeline)
+python manage.py qcluster
 ```
+
+Notes:
+
+- `daphne` must run from the `Backend/` directory so the `lughabridge` module is found.
+- `python manage.py runserver` is OK for basic HTTP testing, but it does not handle WebSockets.
+- Set `REDIS_URL=redis://localhost:6379/0` in your backend `.env` for local dev.
 
 ## Technologies
 
 ### Frontend
+
 - React with TypeScript
 - Vite (build tool)
 - Tailwind CSS
@@ -62,6 +80,7 @@ python manage.py runserver
 - npm (package manager)
 
 ### Backend
+
 - Django
 - Django Channels (WebSocket support)
 - Translation services (NLLB, Groq, HuggingFace)
