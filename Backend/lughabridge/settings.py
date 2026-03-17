@@ -8,6 +8,7 @@ from pathlib import Path
 import environ
 import os
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -30,7 +31,23 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+raw_allowed_hosts = env.list(
+    'ALLOWED_HOSTS',
+    default=['localhost', '127.0.0.1', 'lughabridge.onrender.com', 'lugha-bridge.vercel.app']
+)
+
+
+def _normalize_host(host: str) -> str:
+    value = (host or '').strip().rstrip('/')
+    if not value:
+        return ''
+    if '://' in value:
+        parsed = urlparse(value)
+        return (parsed.hostname or '').strip()
+    return value.split(':')[0].strip()
+
+
+ALLOWED_HOSTS = list(dict.fromkeys([_normalize_host(host) for host in raw_allowed_hosts if host]))
 
 # Demo mode flag
 DEMO_MODE = env('DEMO_MODE')
@@ -181,9 +198,35 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 # CORS Settings
-CORS_ALLOWED_ORIGINS = env.list(
-    'FRONTEND_URL',
-    default=['http://localhost:3000']
+# Support both legacy FRONTEND_URL and explicit CORS_ALLOWED_ORIGINS variables.
+frontend_origins = env.list('FRONTEND_URL', default=[])
+explicit_cors_origins = env.list(
+    'CORS_ALLOWED_ORIGINS',
+    default=[
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8080',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:8080',
+        'https://lugha-bridge.vercel.app',
+    ],
+)
+
+
+def _normalize_origin(origin: str) -> str:
+    # Avoid common config mistakes such as spaces or trailing slash.
+    return (origin or '').strip().rstrip('/')
+
+
+raw_cors_origins = frontend_origins + explicit_cors_origins
+normalized_cors_origins = [_normalize_origin(origin) for origin in raw_cors_origins if origin]
+
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(normalized_cors_origins))
+CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=False)
+CORS_ALLOWED_ORIGIN_REGEXES = env.list(
+    'CORS_ALLOWED_ORIGIN_REGEXES',
+    default=[r'^https://.*\.vercel\.app$'],
 )
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -197,6 +240,10 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# Keep CSRF trusted origins aligned with frontend hosts used for browser POSTs.
+csrf_trusted = env.list('CSRF_TRUSTED_ORIGINS', default=CORS_ALLOWED_ORIGINS)
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys([_normalize_origin(origin) for origin in csrf_trusted if origin]))
 
 
 # Django REST Framework
